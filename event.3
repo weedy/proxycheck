@@ -1,0 +1,458 @@
+.\" $Id: event.3,v 1.7 2004/05/29 14:58:45 mjt Exp $
+.\" manpage for event library
+.TH event 3
+.SH NAME
+event \- timer and I/O event manager
+
+.SH SYNOPSYS
+.nf
+#include <event.h>
+
+struct \fBev_ct\fR;
+struct \fBev_tm\fR;
+
+struct ev_ct *\fBev_ct_new\fR(int \fImaxfdhint\fR, int \fItypeflags\fR)
+int \fBev_init\fR(int \fImaxfdhint\fR, int \fItypeflags\fR)
+void \fBev_ct_free\fR(struct ev_ct *\fIct\fR)
+void \fBev_free\fR(void)
+
+int \fBev_method\fR(const struct ev_ct *\fIct\fR)
+const char *\fBev_method_name\fR(const struct ev_ct *\fIct\fR)
+int \fBev_fdlimit\fR(void)
+
+typedef void \fBev_io_cbck_f\fR(void *\fIdata\fR, int \fIrevents\fR,
+                          int \fIfd\fR, struct ev_ct *\fIct\fR)
+int \fBev_io_add\fR(struct ev_ct *\fIct\fR, int \fIfd\fR, int \fIevents\fR,
+              ev_io_cbck_f *\fRcbck\fR, void *\fIdata\fR)
+int \fBev_io_mod\fR(struct ev_ct *\fIct\fR, int \fIfd\fR, int \fIevents\fR,
+              ev_io_cbck_f *\fRcbck\fR, void *\fIdata\fR)
+int \fBev_io_del\fR(struct ev_ct *\fIct\fR, int \fIfd\fR)
+int \fBev_io_count\fR(const struct ev_ct *\fIct\fR)
+
+typedef void \fBev_tm_cbck_f\fR(void *\fIdata\fR,
+    struct ev_tm *\fItmr\fR, struct ev_ct *\fIct\fR)
+extern ev_time_t \fBev_now\fR
+extern time_t \fBev_time\fR
+ev_time_t \fBev_gettime\fR(void)
+struct ev_tm *\fBev_tm_add\fR(struct ev_ct *\fIct\fR, int \fImstimeout\fR,
+   struct ev_tm *\fItmr\fR, ev_tm_cbck_f *\fIcbck\fR, void *\fIdata\fR)
+struct ev_tm *\fBev_ts_add\fR(struct ev_ct *\fIct\fR, int \fIstimeout\fR,
+   struct ev_tm *\fItmr\fR, ev_tm_cbck_f *\fIcbck\fR, void *\fIdata\fR)
+int \fBev_tm_del\fR(struct ev_ct *\fIct\fR, struct ev_tm *\fItmr\fR)
+int \fBev_tm_count\fR(const struct ev_ct *\fIct\fR)
+ev_time_t \fBev_tm_first\fR(const struct ev_ct *\fIct\fR)
+int \fBev_tm_timeout\fR(const struct ev_ct *\fIct\fR)
+
+int \fBev_wait\fR(struct ev_ct *\fIct\fR, int \fImstimeout\fR)
+.fi
+
+.SH DESCRIPTION
+.PP
+The event module implements a simple threading core that allows a process
+to wait for multiple I/O and/or timer events.  Multiple I/O streams and
+timers can be monitored simultaneously.  Events are delivered via callback
+routines provided by the application.  When requesting an event, application
+provides private context that is passed back to the callback routine when the
+routine is executed, together with some more information about the event.
+.PP
+There are two main types of events recognized by the module, and two types
+of callback routines are defined: I/O events, i.e. when a filedescriptor
+becomes readable or writable, and timer events, which gets executed once
+at a given time (specified as an offset from current time).  Timers have
+millisecond resolution.
+.PP
+The module uses one of several different underlying mechanisms for event
+monitoring, including traditional \fBselect\fR(2) and \fBpoll\fR(2),
+and more advanced methods available for a given operating system, such
+as \fBepoll\fR(4), \fBkqueue\fR(2) and devpoll (\fBpoll\fR(7d)).
+.PP
+There are several sets of routines provided by the module, for the
+following tasks: initialisation, adding/modifying/removing I/O watchers
+(keyed by a filedescriptor), adding/removing timers, and performing
+actual event waiting and dispatching.  The following subsections
+describes each group of routines in turn.
+
+
+.SS Initialisation
+.PP
+Every routine in this module requires an \fIevent context\fR
+of type \fIstruct ev_ct\fR (opaquie to the application), that
+holds internal state of the module, to be passed as a first
+argument \fIet\fR.  This argument may be NULL pointer, in which
+case a default event context is used (which should be initialized
+too).  This way, it is possible to use several "contexts", or
+instances, of the module (for example when an application itself
+is multi-threaded, with it's own event context in every thread).
+To initialize and free event context, the following routines
+are provided:
+.PP
+.nf
+struct ev_ct *\fBev_ct_new\fR(int \fImaxfdhint\fR, int \fItypeflags\fR)
+int \fBev_init\fR(int \fImaxfdhint\fR, int \fItypeflags\fR)
+.fi
+.RS
+creates and initializes new event context \- either specific,
+or global default that will be used when no context is provided
+(when \fIct\fR argument for other routines described below is NULL).
+One of this routines (or both, to initialize either as many specific
+or single global context) should be called before any other routine
+in this module.
+.PP
+\fBev_ct_new\fR() return either pointer to newly allocated
+and initialized event context, or NULL in case of error; \fBev_init\fR()
+return 0 on success or negative value on error.  In case of error, global
+variable \fIerrno\fR will hold specific error information.
+.PP
+Parameter \fImaxfdhint\fR specifies maximum filedescriptor that
+application expects to monitor (only as a hint, to allocate enouth
+resources in one go instead of reallocating new memory on demand).
+If \fImaxfdhint\fR is <= 0, the module will determine maximum number
+of files a process may open, using \fBev_fdlimit\fR() routine (see below).
+.PP
+The \fItypeflags\fR parameter (a bitmask) specifies which underlying method
+the module should use for event monitoring.  Module will choose the "best"
+method that matches \fItypeflags\fR from ones which are available on a
+given system.  \fItypeflags\fR may be 0, in which case any method may
+be used.  Currently, the following methods are recognized (some are
+platform-specific):
+.IP \fBEV_EPOLL\fR
+epoll, available on Linux 2.6 and above, or with patch on 2.4.
+.IP \fBEV_KQUEUE\fR
+kqueue, available on FreeBSD, OpenBSD and some others.
+.IP \fBEV_DEVPOLL\fR
+/dev/poll interface with \fBioctl\fR(), available on Solaris.
+.IP \fBEV_POLL\fR
+traditional \fBpoll\fR(2) interface, problematic to use when number of
+filedescriptors being monitored is large.
+.IP \fBEV_SELECT\fR
+traditional \fRselect\fR(2) interface, most portable, also problematic
+when number of filedescriptors is large, and usually have upper limit
+of 1024 filedescriptors (which may be avoided on some systems).
+.IP \fBEV_ADVANCED\fR
+a shortcut for all the more "advanced" methods, the module will choose
+one available on a given platform if any.
+.PP
+Another way to specify which method to use is to set \fB$EV_METHOD\fR
+environment variable to one of the following values: epoll, kqueue,
+devpoll, poll, select.
+.PP
+The following error conditions are possible:
+.IP "ENOTSUP or ENOSYS"
+method(s) requested by \fItypeflags\fR (or by \fB$EV_METHOD\fR variable)
+isn't supported
+.IP ENOMEM
+there is no memory available to initialize structure
+.RE
+.PP
+.nf
+void \fBev_ct_free\fR(struct ev_ct *\fIct\fR)
+void \fBev_free\fR(void)
+.fi
+.RS
+deallocates resources assotiated with the given specific event context
+\fIct\fR or global default context.  Calling \fBev_ct_free\fR() with NULL
+\fIct\fR argument is the same as calling \fBev_free\fR().  Note that
+these routines does \fInot\fR close opened files or frees timer structures
+which may be assotiated with the event context, this is the responsibility
+of an application.  Usually, freeing an event context that still have some
+timers or I/O watchers assotiated with it is an error.
+.RE
+.PP
+.nf
+int \fBev_method\fR(const struct ev_ct *\fIct\fR)
+const char *\fBev_method_name\fR(const struct ev_ct *\fIct\fR)
+.fi
+.RS
+return the code (described near \fBev_init\fR() above) or name of underlying
+operating system mechanism used for monitoring.
+.RE
+.PP
+.nf
+int \fBev_fdlimit\fR(void)
+.fi
+.RS
+return number of filedescriptors a process may open, according to
+\fBgetrlimit\fR(2) system call.
+.RE
+
+.SS "Monitoring I/O availability"
+.PP
+The module may monitor a set of filedescriptors and call
+application\-supplied callback routine (of type \fBev_io_cbck_f\fR)
+when a filedescriptor becomes readable, writable or have an
+exceptional condition.  An application registers a filedescriptor
+to be monitored, together with a set of conditions of interest,
+a pointer to callback routine and a pointer to application-specific
+data.  When any of conditions becomes available, module will
+execute callback routine, passing it the data pointer, a bitmask
+indicating which conditions become true, and a filedescriptor in question,
+together with a pointer to assotiated event context.
+Available conditions are:
+.IP \fBEV_IN\fR
+filedescriptor is readable (there's some input data to be read), or for
+end of file.
+.IP \fBEV_OUT\fR
+filedescriptor is writable, usually for sockets when underlying network stack
+sent buffered data to a peer and more buffer space become available.
+.IP \fBEV_PRI\fR
+there's urgent data to be read.
+.PP
+The following types and routines are defined:
+.PP
+.nf
+typedef void \fBev_io_cbck_f\fR(void *\fIdata\fR, int \fIrevents\fR,
+                          int \fIfd\fR, struct ev_ct *\fIct\fR)
+.fi
+.RS
+The type of application-supplied callback routine which will be
+called by the module when any of the conditions of interest becomes
+true.  \fIct\fR is the event context assotiated with the event,
+either specific or default but is never NULL.  \fIfd\fR is the file
+descriptor in question.  \fIrevents\fR is a bitmask indicating which
+conditions (EV_IN, EV_OUT or EV_PRI) are true for the filedescriptor.
+\fIdata\fR is the application-specific data that was passed to
+\fBev_io_add\fR() or \fBev_io_mod\fR() (below) when the \fIfd\fR
+where registered.
+.PP
+It is ok to add/remove events from within the callback routine.
+.PP
+Note that C language calling rules allows one to use a routine
+that accepts only a subset of arguments.  Namely, a routine that
+expects only one argument, a pointer to application data (e.g.
+a structure describing server connection), will act as a callback
+just fine.
+.RE
+.PP
+.nf
+int \fBev_io_add\fR(struct ev_ct *\fIct\fR, int \fIfd\fR, int \fIevents\fR,
+              ev_io_cbck_f *\fRcbck\fR, void *\fIdata\fR)
+.fi
+.RS
+Registers the new filedescriptor \fIfd\fR to be monitored for conditions
+specified by \fIevents\fR parameter, to call a callback routine
+\fIcbck\fR with data \fIdata\fR when any of the conditions becomes true.
+Routine return 0 if registration was successeful, or negative value on
+error (and sets \fIerrno\fR variable appropriately).  It is an error to
+register a filedescriptor twice.  The following error conditions are
+possible:
+.IP EEXIST
+\fIfd\fR is already registered with a given event context
+(for \fBev_io_add\fR() only)
+.IP ENOENT
+\fIfd\fR is not registered with a given event context
+(for \fBev_io_mod\fR() only, see below)
+.IP EINVAL
+\fIfd\fR is negative
+.IP EMFILE
+\fIfd\fR is too large for underlying monitoring mechanism to handle
+(e.g. \fBselect\fR(2) usually unable to work when \fIfd\fR >= 1024)
+.IP ENOMEM
+there is no memory available to initialize internal structure
+.IP EFAULT
+\fIcbck\fR is NULL
+.RE
+.PP
+.nf
+int \fBev_io_mod\fR(struct ev_ct *\fIct\fR, int \fIfd\fR, int \fIevents\fR,
+              ev_io_cbck_f *\fRcbck\fR, void *\fIdata\fR)
+.fi
+.RS
+Modifies monitoring parameters for already registered filedescriptor \fIfd\fR.
+Parameters and return value are the same of \fBev_io_add\fR().
+.RE
+.PP
+.nf
+int \fBev_io_del\fR(struct ev_ct *\fIct\fR, int \fIfd\fR)
+.fi
+.RS
+Deregisters filedescriptor \fIfd\fR and return 0 on success or negative value
+(and sets \fBerrno\fR) on failure.  It is ok to deregister already closed
+filedescriptor \fIfd\fR.  The following error conditions are possible:
+.IP ENOENT
+\fIfd\fR is not registered with this event context.
+.RE
+.PP
+.nf
+int \fBev_io_count\fR(const struct ev_ct *\fIct\fR)
+.fi
+.RS
+return number of filedescriptors currently registered with the given
+event context \fIct\fR.  The number may be used to watch when there's
+no filedescriptors to be monitored, as a condition to exit event loop
+for example.  There's no error return.
+
+.SS Timers
+.PP
+In addition to I/O events, the module also implements concept of a
+\fItimer\fR, which is once-triggering event based on time.  Timer
+events are delivered by callbacks in a way similar to I/O events.
+Unlike I/O events, each timer is assotiated with a structure which
+is owned by application and have to be allocated and freed appropriately
+(or it may be a part of some larger application structure).  When
+timer event is triggered (i.e. when the module calls the application-supplied
+callback routine), the timer is already removed from the list of active
+timers, and pointer to timer structure is passed to the routine.
+An application may free the storage if it was dynamically allocated,
+or reuse the timer structure (to implement repeating timers).
+.PP
+Module caches current time to reduce system call overhead, updating it
+during initialisation and at each call to \fBev_wait\fR() dispatching
+routine (below).  In most cases this is sufficient, but an application
+may update the cached time by calling \fBev_gettime\fR() routine (below).
+Cached current time is stored in \fBev_time\fR (of type \fBtime_t\fR, with
+secound resolution), and in \fBev_now\fR (of type \fBlong long\fR) global
+variables.
+.PP
+The following types, routines and variables are provided:
+.PP
+.nf
+typedef void \fBev_tm_cbck_f\fR(void *\fIdata\fR,
+    struct ev_tm *\fItmr\fR, struct ev_ct *\fIct\fR)
+.fi
+.RS
+The type of timer callback routine.  When the module calls the timer callback
+routine, it passes application\-registered data pointer \fIdata\fR, pointer to
+the timer structure \fItmr\fR and assotiated event context \fIct\fR to it.
+When the callback routine is executed, the timer in question \fItmr\fR was
+already removed from set of active timers and was disassotiated from the
+event context, and may be reused or freed by an application as appropriate.
+.PP
+It is ok to add/remove events from within the callback routine, and
+\fItmr\fR structure may be reused to (re\-)add a timer as appropriate.
+.PP
+The same note as given for \fBev_io_cbck_f\fR callback applies here
+as well: actual callback may expect and handle less parameters than
+the module passes to it (e.g. usually, only \fIdata\fR pointer is sufficient
+for an application).
+.RE
+.PP
+.nf
+extern ev_time_t \fBev_now\fR
+extern time_t \fBev_time\fR
+ev_time_t \fBev_gettime\fR(void)
+.fi
+.RS
+cached current time in secounds (\fBev_time\fR) or millisecounds
+(\fBev_now\fR), and routine that updates the cache and return the
+same value as it has just stored in \fBev_now\fR.  Type \fBev_time_t\fR
+is a 64bit integer (long long).  There is no error return.
+.RE
+.nf
+.PP
+.nf
+struct ev_tm *\fBev_tm_add\fR(struct ev_ct *\fIct\fR, int \fImstimeout\fR,
+   struct ev_tm *\fItmr\fR, ev_tm_cbck_f *\fIcbck\fR, void *\fIdata\fR)
+.fi
+.RS
+Registers new timer event to be triggered after \fImstimeout\fR millisecounds
+from now (since \fBev_now\fR).  When the timer will be triggered, the module
+will call the callback \fIcbck\fR with the value \fIdata\fR.  Argument
+\fItmr\fR may be either NULL, in which case the routine will allocate
+new timer structure dynamically and return it upon successeful completion,
+or timer structure already allocated by application, in which case it shold
+be initialized to zero, and \fImust not\fR already be registered.
+In either case the application is responsible for freeing memory hold by
+\fItmr\fR when it will be disassotiated from the event context (either
+when the module will execute callback routine or after \fBev_tm_del\fR).
+Routine return pointer to the timer structure, or NULL in case of error
+(and sets \fBerrno\fR appropriately).
+.PP
+Timer structure is opaque for an application, and should be zero-initialized
+on allocation.  The only two fields assessible by the applications are:
+.nf
+  ev_tm_cbck_f *\fIevtm_cbck\fR
+  void *\fIevtm_data\fR
+.fi
+which holds the pointer to the callback routine and the application-supplied
+data.  Both fields may be modified by application while the timer is
+assotiated with an event context, with the exception that \fIevtm_cbck\fR
+can not be NULL.
+.PP
+Possible \fBerrno\fR values after call to \fBev_tm_add\fR() are:
+.IP EFAULT
+\fIcbck\fR parameter is NULL
+.IP EINVAL
+\fImstimeout\fR value is negative
+.IP ENOMEM
+\fItmr\fR is NULL and there is no memory to allocate new structure.
+.RE
+.PP
+.nf
+struct ev_tm *\fBev_ts_add\fR(struct ev_ct *\fIct\fR, int \fIstimeout\fR,
+   struct ev_tm *\fItmr\fR, ev_tm_cbck_f *\fIcbck\fR, void *\fIdata\fR)
+.fi
+.RS
+similar to \fBev_tm_add\fR(), with the difference that this one expects
+timeout in secounds instead of millisecounds, and tries to fire all
+timers sheduled for the same secound at once (even if they where registered
+at different millisecounds).
+.RE
+.PP
+.nf
+int \fBev_tm_del\fR(struct ev_ct *\fIct\fR, struct ev_tm *\fItmr\fR)
+.fi
+.RS
+Removes the given timer \fItmr\fR, which should be registered with
+the event context \fIct\fR by \fBev_tm_add\fR() routine above.  As
+usual, the application owns the \fItmr\fR structure after the call
+to this routine.  Routine return amount of millisecounds left to
+the time when the timer should be triggered (which may be 0), or
+negative value on error.  In an attempt to remove a timer which
+isn't registered (or has been triggered already), routine will
+indicate error and set \fBerrno\fR to ENOENT.
+.RE
+.PP
+.nf
+int \fBev_tm_count\fR(const struct ev_ct *\fIct\fR)
+.fi
+.RS
+return number of timers registered with a given event context \fIct\fR.
+.RE
+.PP
+.nf
+ev_time_t \fBev_tm_first\fR(const struct ev_ct *\fIct\fR)
+int \fBev_tm_timeout\fR(const struct ev_ct *\fIct\fR)
+.fi
+.RS
+return a time when first timer will be triggered (or 0 if no timers are
+registered), and amount of millisecounds left to that time (or -1).
+.RE
+
+.SS "Event Loop"
+.PP
+The main event loop handling routines are as follows:
+.PP
+.nf
+int \fBev_wait\fR(struct ev_ct *\fIct\fR, int \fImstimeout\fR)
+.fi
+.RS
+one\-shot wait\-and\-dispatch routine.  It waits up to \fImstimeout\fR
+millisecounds (specify negative value for to wait forever) for registered
+events to happen and executes all necessary callback routines, and when
+returns.  Return value indicates how many I/O events where handled
+(i.e. how many filedescriptors where ready), which may be 0 in case
+of timeout or a timer expired, or -1 in case of error.  If error
+occured (typical case is interrupt, in which case \fBerrno\fR will be
+set to EINTR), \fBev_wait\fR() still executes any pending timers and
+updates current time cache.  For real event loop, an application should
+call this routine repeatedly until some condition (e.g. number of
+filedescriptors registered is non-zero) is true.
+
+.SH "RETURN VALUES"
+.PP
+Most routines in the module return zero or positive integer value in
+case of error
+
+.SH "SEE ALSO"
+select(2), poll(2), epoll(4), kqueue(2), poll(7d), gettimeofday(2), time(2).
+
+.SH BUGS
+The module is using non-standard time representation (\fBev_time_t\fR
+type which is currently defined as long long).  This may be not portable.
+But using any standard types (struct timeval, struct timespec and the
+like) complicates code significantly.
+
+.SH AUTHOR
+This software was written by Michael Tokarev, <mjt@corpit.ru>,
+with help of ideas from work by Wietse Venema.
+

@@ -1,0 +1,225 @@
+2009-12-09 0.50
+ - forked
+ - added more ports to default list
+
+2004-05-29 0.49a
+
+ - numerous portability fixes here and there
+ - real event.3 manpage
+
+2004-05-27 0.49
+
+ - autoconf'ified, sort of
+ - use advanced event mechanisms (epoll, kqueue, devpoll) when available
+ - new option: -i file (or -i -) to read hosts to check from file
+ - add timeout for dsbl cookie
+
+2004-02-17 0.46
+
+ - adopted for new DSBL format
+ - changed protocol names: http=>http-connect, ftp=>ftp-user
+ - do not stop on Content-Type: header seen in HTTP-CONNECT
+   responses (what an idiotic software does this?!)
+ - removed obsolete 118[0-4] ports (old mimail variants)
+
+2003-08-07 0.45a
+
+ - fixed multihomed proxy detection with new DSBL
+   (DSBL now correctly replies with "250 listed [ip.add.re.ss]" instead of
+   "220 listed [ip.add.ress]" to the final end-of-message terminator)
+
+2003-05-11 0.45
+
+ - new option -D to not reset default portlist if -p is given
+ - new port - 5490 - NONAME/1.4 HTTP CONNECT-only proxy (trojan?)
+
+2003-05-05 0.44
+
+ - added ports 1075 to list of ports for socks and http (MSP proxy)
+
+2003-05-01 0.43
+
+ - determine DSBL-listed IP for DSBL submissions (new DSBL listme@
+   server now allows this by printing an IP that was listed on final
+   \r\n.\r\n reply line)
+ - added some proxy info recognision (proxy-agent - yay!), activate with -x.
+ - removed broken HTTP GET support altogether
+ - moved HTTP PUT and wingate/telnet to be more "advanced"
+ - added port 21 to the list of FTP ports
+ - changed connect timeout to be half of -t
+ - yet another wingate/telnet prompt ("telnet>")
+ - CCProxy Telnet handler
+ - write "open" string w/o stdio/buffering
+ - fixed error (proxycheck always prints "closed" lines ignoring -n flag)
+
+2003-02-20 0.42
+
+ - fixed a long-standing bug in dsbl handler - data received from
+   the remote was not collected correctly.  Well, this one wasn't
+   happened too frequently - I only seen it once, when a proxy
+   delivered data from the target mailserver one byte at a time.
+
+ - added yet another port, 1813 (socks5), as advanced (level2) port.
+   SKK proxy listens here, but it is seen unfrequently.
+
+2003-02-14 0.42b2
+
+ - added proxylogger - receiving part of proxycheck, to be used
+   from inetd and with -c chat.
+
+2003-02-12 0.42b1
+
+ - fixed a small bug in last wingate/telnet code changes (mostly
+   cosmetic: "Resource temporarily unavailable" vs "Connection timed out").
+
+ - added another telnet/wingate proxy variant, with a prompt
+   "SpoonProxy>", which expects a command in form "host port"
+   (instead of tn-wg/wingate which is of the form "host:port").
+
+2003-02-04 0.42b
+
+ - some code cleanups/changes: may break things, testing...
+
+ - FTP proxy detection added, port 1183 only for now.  Interesting
+   to experiment with M$ ftp servers ;)
+
+ - fixed not finding advanced protocol if no ports are specified
+   (e.g. -pwg: tried default protos:ports instead of wg:25,1181)
+
+ - modified telnet/wingate proxy code to be a bit faster and to
+   know which command to sent to a particular proxy.
+
+2003-02-02 0.41
+
+ - moved wingate tests to be advanced (do not check by default)
+
+ - allow to use -cdsbl w/o -d:
+    -c dsbl[:smtpserver[:port]],
+   smtpserver defaults to ${DSBL_SMTP:-mx.listme.dsbl.org}
+
+ - print info about total number of open ports found in final stats line
+
+ - new option: -s, to stop trying other ports if one open is found
+
+2003-01-12 0.40
+
+ - removed usage of alloca()
+
+ - pxybuf[] is now signed, to shut up SunPRO C compiler with it's
+   *huge* amount of warnings generated
+
+ - little cleanups in debug output
+
+2003-01-09 0.40b3 (BETA)
+
+ - in -c chat, try to find [ip.add.re.ss] after the expect
+   string from the remote system, and if found, write it
+   after "1.2.3.4 hc:80 open" info (Note format change).
+   Destination system may write an address of the system
+   it's talking with this way - it will be output address
+   of a proxy.  Take it as a guess only, nothing more -
+   value, if found, cannot be trusted.  This is printed only
+   if remote says different address from what we're connecting
+   to.
+
+2003-01-08 0.40b2 (BETA)
+
+ - moved some ports and protocols to be more "advanced".  Check with
+   -h option.
+ - (implementation) reorganized protocol/port specifications
+   Some compilers may choke at the end of pxy.c - will see...
+
+2003-01-02 0.40b1 (BETA)
+
+ - changed protocol names to be two-char by default (please review
+   your scripts: change is incompatible)
+
+ - added "advanced" protocol support: currently, this includes
+   HTTP PUT (hu), HTTP GET (hg), HTTP POST (ho).  Activated by
+   either -a option or explicitly.
+
+2002-12-31 0.34
+
+ - fixed timeradd() macro (missing \) - thanks to Kai Schlichting
+
+ - send SMTP commands one-at-a-time, 'cause some AV engines intercepting
+   port 25 traffic from a proxy loose commands if sent in one TCP packet
+   This made SMTP code somewhat funny at best.
+
+ - new option: -M, to limit number of concurrent connections
+   to one host.  NOTE: experimental, and has at least one bug
+   which I'll fix soon
+
+ - added (hackish) check for Content-{length,type}: header in
+   HTTP response - terminate connection if such header present
+
+2002-12-28 0.33
+
+ - portability: FreeBSD <5.0 sys/event.h clashes with my event module.
+   No good workaround except of maybe prefixing all names by mjt_ which
+   is ugly.  For now, renamed EV_ERROR to EV_ERRNO.
+
+ - fixed warnings in event.c produced on FreeBSD (casting NULL to pointer)
+
+ - some infrastructure for handling GET/POST/PUT/etc proxies.  Not finished
+   and commented out for now.
+
+ - changed in_addr_t/in_addr again.  Leandro Santi.
+   Now using inet_aton(), which requires -lresolv on solaris.
+
+ - added a workaround for http proxies which requires \r\n in
+   the separate packet.
+
+ - little cleanups.
+
+2002-12-24 0.32
+
+ - renamed EVENT_xxx to EV_xxx to be consistent across names (no code change)
+
+ - removed ipaddrport_t altogether (no real need for it)
+
+ - print octal numbers w/o leading zero; print \t as \t, not as \11
+   in verbose debug mode
+ 
+ - new option -n to print info about closed (definitely) proxies.
+   Before, lines like "127.0.0.2 http:8080 closed" was printed
+   automatically.  I.e. restore pre-0.2 behaviour and turn new
+   behaviour on with -n.
+
+ - warn about being run as root
+
+ - portability: some systems lacks in_addr_t data type.  Heh.
+   Changed usages of in_addr_t to unsigned.  Thanks to Leandro
+   Santi lesanti{at}uolsinectis{dot}com{dot}ar.
+ 
+2002-12-24 0.31
+
+ - portability fixes, thanks to Andy Igoshin ai{at}vsu{dot}ru:
+    - AIX has no timeradd, conditionally added timeradd and timercmp
+      to event.c
+    - Solaris has ipaddr_t type - renamed to ipaddrport_t.
+
+ - fixed a typo: tenlet -> telnet
+
+2002-12-23 0.30
+
+ - added a manpage
+
+ - default values for -c (checkproxy.corpit.ru:25) and
+   -d (chat::ESMTP_unwelcome)
+
+ - understand trailing colon after a hostname
+
+ - many cleanups in the code
+
+ - show protocol exchange for wingate and socks in verbose mode
+
+ - print "ip.add.re.ss proto:port closed" for proxies which are
+   proved to be closed (note that this may break existing usage
+   of proxycheck - now something may go to stdout even if no open
+   proxy was found - always check return value and/or search for
+   "open")
+
+ - recognize HTTP reply codes if any
+
+ - try also "telnet host port" on port 23 (somewhat hackish)

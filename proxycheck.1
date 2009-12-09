@@ -1,0 +1,258 @@
+.\" $Id: proxycheck.1,v 1.7 2004/05/27 17:21:34 mjt Exp $
+.\" manpage for proxycheck
+.\" Michael Tokarev <mjt@corpit.ru>
+
+.TH proxycheck 1
+
+.SH NAME
+proxycheck \- open proxy server checker
+
+.SH SYNOPSYS
+\fBproxycheck\fR \fIoptions\fR \fIhost\fR[:\fIproto_port_spec\fR]...
+
+.SH DESCRIPTION
+
+\fBproxycheck\fR is a simple open proxy checking tool which is
+capable to quickly discovery open proxy servers on many hosts.
+It's primary goal is to detect an open proxy server in order
+to prevent it's abuse by various "bad guys", mostly spammers.
+Having a wide-open proxy service running on a publicaly accessible
+network is a very bad idea nowadays, and \fBproxycheck\fR may
+be used to find such system in order to be able to either secure
+a system, or to refuse servicing it until it will be secured
+properly.
+
+In order to determine if a given host is running an open proxy service,
+\fBproxycheck\fR tries to connect to a given destination system
+via a host and perform some actions, trying to talk with the
+destination system.  If a talk is successeful, \fBproxycheck\fR
+assumes the proxy service is running and wide-open.
+
+\fBproxycheck\fR supports all commonly used proxy protocols,
+namely, HTTP CONNECT method, SOCKS versions 4 and 5, and Wingate
+"telnet"-style proxies.  In future, support for more protocols
+may be added.
+
+Please note that with current number of various trojan horses
+cicrulating around, each opening a proxy on a random port,
+it is not really enouth to probe for standard (in whatever
+reason) ports built into the \fBproxycheck\fR.  Instead, it
+is highly recommended to use a list of currently active ports
+maintained by several people on the 'net.
+
+.SH OPTIONS
+
+The following command-line options are recognized:
+
+.IP \fB\-h\fR
+print a short help and exit.
+
+.IP \fB\-v\fR
+increase the verbosity level.  All debugging messages will
+go to standard error stream.
+
+.IP "\fB\-d\fR \fIdeshost\fR:\fIdestport\fR (required)"
+try to establish a proxied connection to the given \fIdsthost\fR,
+port \fIdstport\fR.  This option is required.
+
+.IP "\fB\-c\fR \fIcheck\fR[:\fIparams\fR] (required)"
+the "method" \fBproxycheck\fR will use when talking to a destination
+system to determine if a proxy is open or not.  Interpretation of
+\fIparams\fR is \fIcheck\fR\-dependant.  This option is required.
+Several methods are available:
+.RS
+.IP "\fBchat\fR:\fIsendstr\fR:\fIexpectstr\fR"
+Try to perform simple "chat" with the destination system: send the
+string given as \fIsendstr\fR and wait for \fIexpectstr\fR on output.
+If \fIsendstr\fR is empty, \fBproxycheck\fR will send the proxy parameters
+in the form
+.br
+.nf
+   \fIprotocol\fR:\fIip-address\fR:\fIportnumber\fR
+.br
+.fi
+to the remote system.  Proxy assumed to be open if \fIexpectstr\fR is
+found.
+.IP "\fBdsbl\fR   (no parameters accepted)"
+try to submit all found proxies to the DSBL.org\-like system, see
+http://dsbl.org/ for more details.  All the parameters required
+(username, password, recipient address, cookie server, ...) are
+expected to be found in environment variables.  Run \fBproxycheck\fR
+with \fB\-h\fR option to see a list of recognized variables and
+their default values.  By default, \fBproxycheck\fR will anonimously
+submit all found proxies to unconfirmed.dsbl.org (which isn't very
+useful).  For trusted DSBL user, at least DSBL_USER and DSBL_PASS
+variables should be set properly.
+.RE
+
+.IP "\fB\-p\fR \fIproto_port_spec\fR"
+specifies protocol and ports to connect to.  If not given, \fBproxycheck\fR
+will try it's built-in default list.  This option may be specified more
+than once.   See below for \fIproto_port_spec\fR.  If \fIproto_port_spec\fR
+is specified for a single host to check, it applies to that host only,
+and no protocols/ports in default list will be checked for that host.
+
+.IP \fB\-D\fR
+do not reset default port list when using \fB\-p\fR option, but prepend
+new ports to it instead.
+
+.IP \fB\-a\fR
+use more "advanced" ports/protocols.  The more \fB\-a\fR's given, the more
+ports/protocols will be probed.  For a complete list of all ports and protocols
+and their level, execute \fBproxycheck\fR with \fB\-h\fR option.
+
+.IP "\fB\-t\fR \fItimeout\fR"
+a timeout, in secounds, for every operation.  Default value is 30 secounds.
+The timer starts at the connection attempt to the proxy itself, after
+sending the "connect" command to the proxy and so on.
+
+.IP "\fB\-m\fR \fImaxconn\fR"
+Do not attempt to make more than \fImaxconn\fR parallel connections.
+By default, maximum number of parallel connections limited by the
+operating system and on most systems it is around 1000.
+
+.IP "\fB\-M\fR \fImaxhconn\fR"
+Do not make more than \fImaxhconn\fR parallel connections to the
+same host (default is unlimited).  This may be useful for overloaded
+proxies which can't handle many parallel connections using different
+ports/protocols, but may significantly slow down the whole process.
+
+.IP \fB\-s\fR
+when an open proxy is found on a given IP, stop probing for other
+ports/protocols for this IP.  Best used when many IPs are tested,
+and/or with \fB\-M\fR option.  This is because currently, \fBproxycheck\fR
+will not make any \fInew\fR connections to such host, but will wait
+for already active connections to complete.
+
+.IP "\fB\-b\fR \fIbindaddr\fR"
+use \fIbindaddr\fR as a source address for all outgoing connections.
+
+.IP \fB\-n\fR
+write a line about definitely closed proxies to stdout in additional
+to writing about open proxies, in a form
+.br
+.nf
+   127.0.0.1 http:8080 closed
+.fi
+
+.IP \fB\-x\fR
+print extended proxy information (proxy-agent and the like) if available.
+This will be on the same "open" (or "closed" with -n) line, last, enclosed
+in square brackets [].
+
+.IP "\fB\-i\fR \fIfilename\fR"
+read list of hosts to check from a given file \fIfilename\fR (in addition
+to command line), or from stdin if \fIfilename\fR if `\-'.
+
+.RE
+
+.SS "Protocol and Port specification"
+
+Proxy protocols and ports to try (\fIproto_port_spec\fR) specified
+using the following syntax:
+.br
+.nf
+      [proto:][port,port,port]
+.br
+like:
+.br
+      hc:3128,8080 (http protocol on ports 3128 and 8080)
+      hc:    (default list of ports for http protocol)
+      3128   (try http protocol on standard http port 3128)
+      1234   (try all protocols on non-standard port 1234)
+.br
+.fi
+
+Run \fBproxycheck -h\fR to see a list of supported protocols
+and default ports.
+
+.SH USAGE
+Simplest usage of \fBproxycheck\fR is to try to connect to e.g.
+your own mailserver with \fBchat\fR check method.  First, connect
+to your mailserver on port 25 to see which line it outputs upon
+connection (SMTP greething line), and use it with \fBchat\fR:
+
+.nf
+  proxycheck -d yourmailserver.example.org:25 \\
+    -c chat::\fIgreething\fR ip.add.re.ss...
+.fi
+
+\fBproxycheck\fR will write a single line for every proto:port
+it finds to be open on stdout, in the form:
+.br
+.nf
+  127.0.0.3 hc:80 open
+.br
+.fi
+where \fI127.0.0.3\fR is an IP address of a host being tested, \fIhc\fR
+is the protocol name (HTTP CONNECT, consult \fBproxycheck \-h\fR for
+a full list of protocols) and \fI80\fR is a port number where the proxy
+service is running.
+
+In addition, if \fBproxycheck\fR is able to guess \fIoutgoing\fR IP address
+of a proxy as seen by a destination system, and if that address is different
+from input \fBproxycheck\fR is connecting to, it will print this information
+too on the same line, like:
+.br
+.nf
+  127.0.0.2 hc:80 open 127.0.0.3
+.br
+.fi
+where \fI127.0.0.3\fR is \fIoutgoing\fR IP addres of a multihomed/cascaded
+proxy as reported by the destination system.  This IP address is hint only,
+there is no simple and reliable way currently exists for \fBproxycheck\fR
+to determine that information.  \fBProxycheck\fR is able to parse a line
+sent by remote system in \fB\-c chat\fR mode \- in this mode, \fBproxycheck\fR
+skips all printable characters after \fIexpstr\fR it found and searches for
+opening `[', when tries to find closing ']' and interpret digits and dots
+in between as an IP address which gets printed like above.  If your
+mailserver's initial reply contains remote system's IP, or if your
+mailserver replies with remote system's IP address to HELO/EHLO command,
+this feature may be useful (in the last case, HELO command should be
+specified in chat).
+
+When \fB\-n\fR option is specified, for proto:ports which aren't running
+open proxy service, and for which \fBproxycheck\fR is able to strongly
+determine this, a line in the following format will be written:
+.br
+.nf
+  127.0.0.4 hc:80 closed
+.br
+.fi
+Note however that in most cases there is no way to reliable determine
+whenever a given service is \fInot\fR open: for example, an open
+proxy server may be overloaded and refusing connections.  In most
+cases, \fBproxycheck\fR assumes proxy is in unknown state, only a
+few codes are recognized as real indication of "closed" state.
+
+When \fB\-x\fR option is specified, there will be additional proxy info
+written on the same line (if available), like:
+.br
+.nf
+  127.0.0.2 hc:80 open 127.0.0.3 [AnalogX 3.1415926]
+  127.0.0.3 hc:80 open [AnalogX 3.1415926]
+  127.0.0.4 hc:80 closed [AnalogX 3.1415926]
+.br
+.fi
+
+One may see some detail of \fBproxycheck\fR's operations giving
+sufficient number of \fB\-v\fR options in the command line.  Verbosity
+level of 5 (\fB\-vvvvv\fR) will show almost everything.  All the
+debugging output will go to the standard error stream and thus will
+not affect normal operations (when you process \fBproxycheck\fR's output
+using some script).
+
+.SH "EXIT CODE"
+\fBproxycheck\fR will exit with code 100 if at least one open
+proxy server was found.  In case of incorrect usage, it will exit
+with code 1.  If no open proxies where found, \fBproxycheck\fR
+will return 0.
+
+.SH LICENSE
+This program is free software.  It may be used and distributed
+in the terms of General Public License (GPL) version 2 or later.
+
+.SH AUTHOR
+\fBproxycheck\fR written by Michael Tokarev <mjt@corpit.ru>.
+Latest version of this utlilty may be found at
+http://www.corpit.ru/mjt/proxycheck.html.

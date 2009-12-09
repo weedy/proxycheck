@@ -636,9 +636,11 @@ const pxyproto_t pxyprotos[] = {
 static const ipport_t
  htc[] = {80,81,1075,3128,4480,6588,8000,8080,8081,8090,0},
  hta[] = {7033,8085,8095,8100,8105,8110,0},
+ htaa[] = {/*rizon*/1039,1050,1080,1098,1200,19991,3332,3382,35233,443,444,4471,4480,5000,5490,5634,5800,63000,63809,65506,6588,6661,6663,6664,6665,6667,6668,7070,7868,808,8085,8082,8118,8888,9000,9090,9988,0},
  spp[] = {1080,1075,0},
- wgp[] = {23,0},
- fup[] = {21,0},
+ spa[] = {/*rizon*/10000,10080,10099,10130,10242,10777,1025,1026,1027,1028,1029,1030,1031,1032,1033,1039,1050,1066,1081,1098,11011,11022,11033,11055,11171,1122,11225,1180,1182,1200,1202,1212,1234,12654,1337,14841,17327,1813,18888,1978,1979,19991,2000,21421,22277,2280,24971,24973,25552,2769,28882,29992,3127,3128,32167,3330,3380,3801,40,4044,41080,41379,43341,443,44548,4471,43371,4914,49699,5353,559,58,6000,63808,6551,6561,6664,6748,6969,7007,7080,8002,8009,8020,8080,8111,8278,8751,8888,9090,9100,9988,9999,0},
+ wgp[] = {23,2323,0},
+ fup[] = {21,2121,0},
  p1813[] = {1813,0}, /* skk proxy, socks5 only */
  p5490[] = {5490,0}  /* NONAME/1.4, probably trojan - http connect only */
 ;
@@ -652,11 +654,16 @@ const pxyprobe_t pxyprobes[] = {
  { HCP, p5490, 0 }, /* NONAME/1.4, http connect only */
  { HCP, hta,   1 }, /* HTTP CONNECT extended ports */
  { HOP, htc,   1 }, /* HTTP POST basic */
+ { HUP, htc,   2 }, /* HTTP PUT basic */
  { WGP, wgp,   2 }, /* wingate/telnet */
  { HOP, hta,   2 }, /* HTTP POST extended ports */
  { S5P, p1813, 2 }, /* SKK proxy (socks5) */
- { HUP, htc,   3 }, /* HTTP PUT basic */
+ { S5P, spa,   3 }, /* socks5 extended */
+ { S4P, spa,   3 }, /* socks4 extended */
  { FUP, fup,   3 }, /* FTP */
- { HUP, hta,   4 }, /* HTTP PUT extended ports */
+ { HUP, hta,   3 }, /* HTTP PUT extended ports */
+ { HUP, htaa,  4 }, /* HTTP PUT really extended ports */
+ { HOP, htaa,  4 }, /* HTTP POST really extended ports */
+ { HCP, htaa,  4 }, /* HTTP CONNECT really extended ports */
  {0,0,0}
 };

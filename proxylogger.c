@@ -62,6 +62,8 @@ static struct proto {
  { "socks5", 6, "s5" },
  { "fu", 2, "fu" },
  { "ftp", 3, "fu" },
+ { "cisco", 5, "ci" },
+ { "ci", 2, "ci" },
  { NULL, 0, NULL }
 };
 

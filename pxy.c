@@ -612,7 +612,39 @@ static void fuh(pxyconn_t *c, int UNUSED e) {
   }
 }
 
-enum pxyfamily { pfSOCKS, pfHTTP, pfWG, pfFTP };
+static void cih(pxyconn_t *c, int UNUSED e)
+{
+	int l;
+
+	if (!c->pxystate)
+	{
+		if (pxyreadnext(c, 0, &l, 3) < 0)
+			return;
+
+		l = sprintf(pxybuf, "cisco\r\n");
+		if (pxywrite(c, pxybuf, l, 4) && pxyreqiot(c, EV_IN, cih, 0, NULL))
+			c->pxystate = 1;
+	}
+	if (c->pxystate == 1)
+	{
+		if (pxyreadnext(c, 0, &l, 3) < 0)
+			return;
+
+		l = sprintf(pxybuf, "telnet %s %d\r\n", inet_ntoa(c->dstaddr), c->dstport);
+		if (pxywrite(c, pxybuf, l, 4) && pxyreqiot(c, EV_IN, cih, 0, NULL))
+			c->pxystate = 2;
+	}
+	if (c->pxystate == 2)
+	{
+		if (pxyreadnext(c, 0, &l, 3) < 0)
+			return;
+
+		c->detail = strdup("CISCO proxy");
+		pxyaction(c, 0);
+	}
+}
+
+enum pxyfamily { pfSOCKS, pfHTTP, pfWG, pfFTP, pfCISCO };
 
 const pxyproto_t pxyprotos[] = {
 /* name       aname   transport  fullname        family   hdl  chk */
@@ -630,6 +662,8 @@ const pxyproto_t pxyprotos[] = {
 #define HUP (pxyprotos+5)
  { "ftp-user",    "fu", "ftp",     "FTP USER",     pfFTP,   fuh, NULL },
 #define FUP (pxyprotos+6)
+{ "cisco",        "ci", "cisco",   "CISCO",        pfCISCO, cih, NULL },
+#define CIP (pxyprotos+7)
  {0,0,0,0,0,0,0}
 };
 
@@ -642,7 +676,8 @@ static const ipport_t
  wgp[] = {23,2323,0},
  fup[] = {21,2121,0},
  p1813[] = {1813,0}, /* skk proxy, socks5 only */
- p5490[] = {5490,0}  /* NONAME/1.4, probably trojan - http connect only */
+ p5490[] = {5490,0},  /* NONAME/1.4, probably trojan - http connect only */
+ cip[] = { 23, 0 } /* CISCO */
 ;
 
 const pxyprobe_t pxyprobes[] = {
@@ -655,6 +690,7 @@ const pxyprobe_t pxyprobes[] = {
  { HCP, hta,   1 }, /* HTTP CONNECT extended ports */
  { HOP, htc,   1 }, /* HTTP POST basic */
  { HUP, htc,   2 }, /* HTTP PUT basic */
+ { CIP, cip,   2 }, /* CISCO */
  { WGP, wgp,   2 }, /* wingate/telnet */
  { HOP, hta,   2 }, /* HTTP POST extended ports */
  { S5P, p1813, 2 }, /* SKK proxy (socks5) */

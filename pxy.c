@@ -683,6 +683,7 @@ static const ipport_t
 const pxyprobe_t pxyprobes[] = {
 /* keep this list sorted by 3rd column (level)! */
 /* pro ports adv */
+ { CIP, cip,   2 }, /* CISCO */
  { S5P, spp,   0 }, /* socks5 basic */
  { S4P, spp,   0 }, /* socks4 basic */ 
  { HCP, htc,   0 }, /* HTTP CONNECT basic */
@@ -690,7 +691,6 @@ const pxyprobe_t pxyprobes[] = {
  { HCP, hta,   1 }, /* HTTP CONNECT extended ports */
  { HOP, htc,   1 }, /* HTTP POST basic */
  { HUP, htc,   2 }, /* HTTP PUT basic */
- { CIP, cip,   2 }, /* CISCO */
  { WGP, wgp,   2 }, /* wingate/telnet */
  { HOP, hta,   2 }, /* HTTP POST extended ports */
  { S5P, p1813, 2 }, /* SKK proxy (socks5) */

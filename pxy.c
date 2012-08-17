@@ -258,13 +258,11 @@ static int hcc(pxyconn_t *c, char *buf, int l) {
     if (memcfind(buf, l, "content-length:")
         /* some STUPID software... || memcfind(buf, l, "content-type:") */) {
       pxyinfo(c, 2, "HTTP CONNECT answered with a page (code %d)", r);
-      pxyaction(c, 1); /* maybe temp. error message */
-      return 1;
     }
     else {
       pxyinfo(c, 2, "HTTP request successeful (%d)", r);
-      return 0;
     }
+    return 0;
   }
 }
 
